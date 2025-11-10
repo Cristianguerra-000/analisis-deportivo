@@ -27,10 +27,10 @@ data/raw/*.json
 data/processed/*.parquet
 data/predictions/*.csv
 
-# Models
-models/*.pkl
-models/*.joblib
-models/*.h5
+# Models (comentado para permitir subir modelos entrenados)
+# models/*.pkl
+# models/*.joblib
+# models/*.h5
 
 # IDE
 .vscode/
