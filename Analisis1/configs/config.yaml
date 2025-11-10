@@ -1,0 +1,116 @@
+# Configuración del sistema de predicción NBA
+
+data:
+  seasons:
+    - "2022-23"
+    - "2023-24"
+    - "2024-25"
+  
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  predictions_dir: "data/predictions"
+  
+  # Actualización automática
+  auto_update: true
+  update_frequency_hours: 24
+
+features:
+  # Rolling statistics
+  rolling_windows: [5, 10, 20]
+  
+  # ELO system
+  elo:
+    initial_rating: 1500
+    k_factor: 20
+    home_advantage: 100
+  
+  # Features a incluir
+  use_features:
+    - elo_rating
+    - rolling_stats
+    - home_advantage
+    - rest_days
+    - back_to_back
+    - offensive_rating
+    - defensive_rating
+    - pace
+    - win_streak
+    - head_to_head
+
+models:
+  baseline:
+    win_probability:
+      type: "LogisticRegression"
+      params:
+        C: 1.0
+        max_iter: 1000
+    
+    point_margin:
+      type: "LinearRegression"
+      params: {}
+    
+    total_points:
+      type: "Ridge"
+      params:
+        alpha: 1.0
+  
+  advanced:
+    type: "XGBoost"
+    params:
+      n_estimators: 500
+      max_depth: 6
+      learning_rate: 0.05
+      subsample: 0.8
+      colsample_bytree: 0.8
+      random_state: 42
+    
+    # Calibración de probabilidades
+    calibration:
+      method: "isotonic"
+      cv_folds: 5
+
+evaluation:
+  # Split temporal
+  test_size: 0.2
+  validation_size: 0.1
+  
+  # Métricas principales
+  metrics:
+    - log_loss
+    - brier_score
+    - roc_auc
+    - accuracy
+    - mae
+    - rmse
+    - r2
+  
+  # Backtesting
+  backtesting:
+    enabled: true
+    window_size_games: 82  # Una temporada
+    step_size_games: 10
+
+dashboard:
+  host: "localhost"
+  port: 8501
+  theme: "dark"
+  
+  # Configuración de visualizaciones
+  charts:
+    default_games: 20
+    probability_threshold: 0.6
+
+api:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  
+  # Rate limiting
+  rate_limit:
+    enabled: true
+    requests_per_minute: 60
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/nba_predictor.log"
