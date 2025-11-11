@@ -368,6 +368,118 @@ def render_nba_tab():
         away_options = [team for team in all_teams if team != home_team]
         away_team = st.selectbox("✈️ Equipo Visitante", options=away_options, key="away_team")
 
+    # ====== HISTORIAL HEAD-TO-HEAD ======
+    st.markdown("---")
+    st.markdown(f"### 📊 Historial: {home_team} vs {away_team}")
+    
+    # Filtrar enfrentamientos directos entre estos equipos
+    h2h = df_nba[
+        ((df_nba[home_col] == home_team) & (df_nba[away_col] == away_team)) |
+        ((df_nba[home_col] == away_team) & (df_nba[away_col] == home_team))
+    ].copy()
+    
+    if len(h2h) > 0:
+        # Calcular estadísticas generales
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        
+        # Victorias totales
+        home_wins = len(h2h[(h2h[home_col] == home_team) & (h2h['HOME_PTS'] > h2h['AWAY_PTS'])]) + \
+                    len(h2h[(h2h[away_col] == home_team) & (h2h['AWAY_PTS'] > h2h['HOME_PTS'])])
+        away_wins = len(h2h) - home_wins
+        
+        with col_stat1:
+            st.metric(f"🏆 Victorias {home_team}", home_wins)
+        
+        with col_stat2:
+            st.metric(f"🏆 Victorias {away_team}", away_wins)
+        
+        with col_stat3:
+            st.metric("📅 Enfrentamientos", len(h2h))
+        
+        with col_stat4:
+            if len(h2h) > 0:
+                date_col = 'GAME_DATE' if 'GAME_DATE' in h2h.columns else 'game_date'
+                last_game = pd.to_datetime(h2h[date_col]).max()
+                st.metric("📆 Último Partido", last_game.strftime('%Y-%m-%d'))
+        
+        # Mostrar últimos 5 enfrentamientos
+        st.markdown("#### 📋 Últimos 5 Enfrentamientos")
+        
+        h2h_recent = h2h.sort_values(date_col, ascending=False).head(5)
+        
+        # Crear DataFrame para mostrar
+        display_data = []
+        for _, game in h2h_recent.iterrows():
+            # Determinar quién jugó de local y visitante
+            if game[home_col] == home_team:
+                local = home_team
+                visitante = away_team
+                pts_local = game['HOME_PTS']
+                pts_visitante = game['AWAY_PTS']
+            else:
+                local = away_team
+                visitante = home_team
+                pts_local = game['HOME_PTS']
+                pts_visitante = game['AWAY_PTS']
+            
+            ganador = local if pts_local > pts_visitante else visitante
+            margen = abs(pts_local - pts_visitante)
+            
+            display_data.append({
+                'Fecha': pd.to_datetime(game[date_col]).strftime('%Y-%m-%d'),
+                'Local': local,
+                'Visitante': visitante,
+                'Resultado': f"{int(pts_local)} - {int(pts_visitante)}",
+                'Ganador': f"🏆 {ganador}",
+                'Margen': f"{int(margen)} pts"
+            })
+        
+        h2h_df = pd.DataFrame(display_data)
+        st.dataframe(h2h_df, use_container_width=True, hide_index=True)
+        
+        # Estadísticas promedio en enfrentamientos
+        st.markdown("#### 📈 Promedios en Enfrentamientos")
+        col_avg1, col_avg2 = st.columns(2)
+        
+        with col_avg1:
+            st.markdown(f"**{home_team}:**")
+            # Calcular promedio de puntos del home_team en estos partidos
+            home_as_home = h2h[h2h[home_col] == home_team]['HOME_PTS'].mean()
+            home_as_away = h2h[h2h[away_col] == home_team]['AWAY_PTS'].mean()
+            home_avg = h2h[
+                ((h2h[home_col] == home_team) & h2h['HOME_PTS']) |
+                ((h2h[away_col] == home_team) & h2h['AWAY_PTS'])
+            ]
+            
+            # Calcular correctamente
+            home_pts_list = []
+            for _, g in h2h.iterrows():
+                if g[home_col] == home_team:
+                    home_pts_list.append(g['HOME_PTS'])
+                else:
+                    home_pts_list.append(g['AWAY_PTS'])
+            
+            if home_pts_list:
+                st.metric("Puntos Promedio", f"{sum(home_pts_list)/len(home_pts_list):.1f}")
+        
+        with col_avg2:
+            st.markdown(f"**{away_team}:**")
+            # Calcular promedio de puntos del away_team en estos partidos
+            away_pts_list = []
+            for _, g in h2h.iterrows():
+                if g[home_col] == away_team:
+                    away_pts_list.append(g['HOME_PTS'])
+                else:
+                    away_pts_list.append(g['AWAY_PTS'])
+            
+            if away_pts_list:
+                st.metric("Puntos Promedio", f"{sum(away_pts_list)/len(away_pts_list):.1f}")
+        
+    else:
+        st.info(f"ℹ️ No hay historial de enfrentamientos entre {home_team} y {away_team} en los datos disponibles.")
+    
+    st.markdown("---")
+
     # Botón de predicción
     if st.button("🔮 Generar Predicción", type="primary", use_container_width=True):
         if predictor:
@@ -380,40 +492,70 @@ def render_nba_tab():
     st.markdown("---")
 
     # Últimos partidos
-    st.markdown("### 📋 Últimos Partidos")
+    st.markdown("### 📋 Últimos Partidos Reales")
 
     if len(df_nba) > 0:
         # Detectar columna de fecha
         date_col = 'GAME_DATE' if 'GAME_DATE' in df_nba.columns else 'game_date'
 
         if date_col in df_nba.columns:
-            recent = df_nba.sort_values(date_col, ascending=False).head(10)
+            # Filtrar solo partidos hasta hoy (eliminar proyecciones futuras)
+            from datetime import datetime
+            today = pd.Timestamp(datetime.now())
+            df_past = df_nba[pd.to_datetime(df_nba[date_col]) <= today].copy()
+            
+            if len(df_past) == 0:
+                st.warning("⚠️ No hay partidos históricos disponibles. Los datos parecen ser proyecciones futuras.")
+                df_past = df_nba  # Usar todos los datos si no hay históricos
+            
+            # Ordenar por fecha descendente y tomar últimos 10
+            recent = df_past.sort_values(date_col, ascending=False).head(10)
 
             # Determinar columnas a mostrar según tipo de datos
             if 'HOME_TEAM_NAME' in df_nba.columns:
-                display_cols = [date_col, 'HOME_TEAM_NAME', 'HOME_PTS', 'AWAY_PTS', 'AWAY_TEAM_NAME']
+                # Agregar columna de ganador
+                def get_winner(row):
+                    if row['HOME_PTS'] > row['AWAY_PTS']:
+                        return f"🏆 {row['HOME_TEAM_NAME']}"
+                    else:
+                        return f"🏆 {row['AWAY_TEAM_NAME']}"
+                
+                recent_display = recent.copy()
+                recent_display['Ganador'] = recent.apply(get_winner, axis=1)
+                recent_display['Resultado'] = recent['HOME_PTS'].astype(str) + ' - ' + recent['AWAY_PTS'].astype(str)
+                
+                display_cols = [date_col, 'HOME_TEAM_NAME', 'AWAY_TEAM_NAME', 'Resultado', 'Ganador']
                 rename_dict = {
                     date_col: 'Fecha',
-                    'HOME_TEAM_NAME': 'Equipo Local',
-                    'HOME_PTS': 'Pts Local',
-                    'AWAY_PTS': 'Pts Visitante',
-                    'AWAY_TEAM_NAME': 'Equipo Visitante'
+                    'HOME_TEAM_NAME': 'Local',
+                    'AWAY_TEAM_NAME': 'Visitante',
                 }
             else:
                 display_cols = [date_col, 'home_team', 'home_score', 'away_score', 'away_team']
                 rename_dict = {
                     date_col: 'Fecha',
-                    'home_team': 'Equipo Local',
+                    'home_team': 'Local',
                     'home_score': 'Pts Local',
                     'away_score': 'Pts Visitante',
-                    'away_team': 'Equipo Visitante'
+                    'away_team': 'Visitante'
                 }
+                recent_display = recent
 
-            available_cols = [col for col in display_cols if col in recent.columns]
+            available_cols = [col for col in display_cols if col in recent_display.columns]
 
             if available_cols:
-                display_df = recent[available_cols].rename(columns=rename_dict)
-                st.dataframe(display_df, width='stretch', height=400)
+                display_df = recent_display[available_cols].rename(columns=rename_dict)
+                
+                # Formatear fecha
+                if 'Fecha' in display_df.columns:
+                    display_df['Fecha'] = pd.to_datetime(display_df['Fecha']).dt.strftime('%Y-%m-%d')
+                
+                st.dataframe(display_df, use_container_width=True, height=400)
+                
+                # Mostrar info de fechas
+                fecha_min = pd.to_datetime(df_past[date_col]).min()
+                fecha_max = pd.to_datetime(df_past[date_col]).max()
+                st.caption(f"📅 Rango de datos: {fecha_min.strftime('%Y-%m-%d')} a {fecha_max.strftime('%Y-%m-%d')} ({len(df_past):,} partidos)")
         else:
             st.info("No hay información de fechas disponible")
 

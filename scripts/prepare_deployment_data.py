@@ -63,7 +63,14 @@ print(f"\n📋 Columnas seleccionadas: {len(available_columns)}")
 # Crear DataFrame reducido
 df_lite = df_full[available_columns].copy()
 
-# Tomar solo los últimos 2000 partidos (suficiente para predicciones)
+# IMPORTANTE: Filtrar solo partidos hasta HOY (eliminar proyecciones futuras)
+from datetime import datetime
+today = pd.Timestamp(datetime.now())
+df_lite = df_lite[pd.to_datetime(df_lite['GAME_DATE']) <= today]
+
+print(f"\n🗓️  Partidos filtrados hasta hoy: {len(df_lite)}")
+
+# Tomar los últimos 2000 partidos históricos
 df_lite = df_lite.sort_values('GAME_DATE').tail(2000)
 
 print(f"\n📉 Datos reducidos: {len(df_lite)} partidos, {df_lite.shape[1]} columnas")
