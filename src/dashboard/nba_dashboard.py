@@ -2,10 +2,10 @@
 🏀 DASHBOARD NBA - Sistema de Predicciones Avanzadas
 
 Dashboard especializado para NBA con:
-- Predicciones con 3 modelos (72.6% accuracy)
-- Análisis histórico completo
+- Predicciones con 3 modelos (77.0% accuracy)
+- Análisis histórico completo (13,691 partidos, 10 temporadas)
 - Gráficos interactivos con Plotly
-- Sistema ELO + 99 features avanzadas
+- Sistema ELO + XGBoost + 33 features avanzadas
 """
 
 import streamlit as st
@@ -70,13 +70,13 @@ def load_nba_data():
     """Carga datos NBA del sistema existente"""
     try:
         # Intentar cargar datos con features completas
-        df = pd.read_parquet('data/nba_games_features.parquet')
-        st.info("✅ Datos avanzados cargados (4,192 partidos con 99 features)")
+        df = pd.read_parquet('data/processed/games_with_features.parquet')
+        st.info("✅ Datos avanzados cargados (13,691 partidos con 103 features, 10 temporadas 2015-2025)")
     except FileNotFoundError:
         try:
             # Fallback a datos básicos
             df = pd.read_parquet('data/nba_games.parquet')
-            st.warning("⚠️ Usando datos básicos (1,000 partidos)")
+            st.warning("⚠️ Usando datos básicos")
         except FileNotFoundError:
             st.error("❌ No se encontraron datos NBA")
             return pd.DataFrame()
@@ -154,7 +154,18 @@ def show_advanced_prediction(home_team, away_team, df_nba, predictor):
             winner_prob = predictions['away_win_probability']
             winner_color = "#FF6B6B"  # Rojo para visitante
 
-        # Mostrar resultados
+        # Calcular puntos esperados para cada equipo
+        # Margen positivo = local gana, margen negativo = visitante gana
+        margin = predictions['predicted_margin']
+        total_pts = predictions['predicted_total']
+        
+        # Calcular puntos individuales usando margen y total
+        home_pts = (total_pts + margin) / 2
+        away_pts = (total_pts - margin) / 2
+
+        # Mostrar resultados principales
+        st.markdown("### 🎯 Predicción del Partido")
+        
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -167,16 +178,43 @@ def show_advanced_prediction(home_team, away_team, df_nba, predictor):
         with col2:
             st.metric(
                 "📊 Margen Esperado",
-                f"{predictions['predicted_margin']:+.1f} pts",
-                help="Diferencia de puntos esperada"
+                f"{abs(margin):.1f} pts",
+                help=f"Diferencia de puntos esperada ({winner_team} por {abs(margin):.1f})"
             )
 
         with col3:
             st.metric(
                 "🎯 Total Puntos",
-                f"{predictions['predicted_total']:.1f} pts",
+                f"{total_pts:.1f} pts",
                 help="Total de puntos esperados en el partido"
             )
+
+        # Mostrar puntos predichos para cada equipo
+        st.markdown("### 📊 Puntos Predichos por Equipo")
+        
+        col_home, col_away = st.columns(2)
+        
+        with col_home:
+            st.markdown(f"""
+            <div style='background-color: #e8f4f8; padding: 20px; border-radius: 10px; text-align: center;'>
+                <h3>🏠 {home_team}</h3>
+                <h1 style='color: #4ECDC4; font-size: 3rem;'>{home_pts:.1f}</h1>
+                <p style='color: #7f8c8d;'>Puntos Esperados</p>
+                <p style='font-size: 1.2rem;'>Probabilidad: {predictions['home_win_probability']:.1%}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_away:
+            st.markdown(f"""
+            <div style='background-color: #ffeaa7; padding: 20px; border-radius: 10px; text-align: center;'>
+                <h3>✈️ {away_team}</h3>
+                <h1 style='color: #FF6B6B; font-size: 3rem;'>{away_pts:.1f}</h1>
+                <p style='color: #7f8c8d;'>Puntos Esperados</p>
+                <p style='font-size: 1.2rem;'>Probabilidad: {predictions['away_win_probability']:.1%}</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
 
         # Gráfico de probabilidades
         fig = go.Figure()
@@ -257,13 +295,13 @@ def render_nba_tab():
 
     with col3:
         if predictor:
-            st.metric("🤖 Modelo", "ACTIVO", help="3 modelos entrenados")
+            st.metric("🤖 Modelo", "XGBoost", help="3 modelos XGBoost entrenados con 13,691 partidos")
         else:
             st.metric("🤖 Modelo", "INACTIVO", help="Modelo no disponible")
 
     with col4:
-        accuracy = "72.6%" if predictor else "N/A"
-        st.metric("🎯 Precisión", accuracy)
+        accuracy = "77.0%" if predictor else "N/A"
+        st.metric("🎯 Precisión", accuracy, help="77% precisión en 2,738 partidos de test")
 
     st.markdown("---")
 
