@@ -68,19 +68,60 @@ st.markdown("""
 @st.cache_data(ttl=300)  # Cache 5 minutos
 def load_nba_data():
     """Carga datos NBA del sistema existente"""
+    # Prioridad 1: Datos completos procesados (local)
     try:
-        # Intentar cargar datos con features completas
         df = pd.read_parquet('data/processed/games_with_features.parquet')
         st.info("✅ Datos avanzados cargados (13,691 partidos con 103 features, 10 temporadas 2015-2025)")
+        return df
     except FileNotFoundError:
-        try:
-            # Fallback a datos básicos
-            df = pd.read_parquet('data/nba_games.parquet')
-            st.warning("⚠️ Usando datos básicos")
-        except FileNotFoundError:
-            st.error("❌ No se encontraron datos NBA")
-            return pd.DataFrame()
-
+        pass
+    
+    # Prioridad 2: Datos de despliegue (Cloud)
+    try:
+        df = pd.read_parquet('data/deployment_data.parquet')
+        st.info("✅ Datos cargados (2,000 partidos recientes para predicciones)")
+        return df
+    except FileNotFoundError:
+        pass
+    
+    # Prioridad 3: Datos raw
+    try:
+        import glob
+        csv_files = glob.glob('data/raw/games_*.csv')
+        if csv_files:
+            # Cargar el archivo más reciente
+            latest_file = max(csv_files)
+            df = pd.read_csv(latest_file)
+            df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'])
+            st.info(f"✅ Datos cargados desde {latest_file}")
+            return df
+    except Exception:
+        pass
+    
+    # Si no hay archivos, crear datos de ejemplo mínimos
+    st.warning("⚠️ No se encontraron archivos de datos. Usando datos de ejemplo...")
+    
+    teams = ['Lakers', 'Celtics', 'Warriors', 'Heat', 'Bucks', 'Nets', 'Suns', 'Mavericks']
+    import numpy as np
+    from datetime import datetime, timedelta
+    
+    data = []
+    for i in range(100):
+        home_team = np.random.choice(teams)
+        away_team = np.random.choice([t for t in teams if t != home_team])
+        
+        data.append({
+            'GAME_DATE': datetime.now() - timedelta(days=i),
+            'HOME_TEAM_NAME': home_team,
+            'AWAY_TEAM_NAME': away_team,
+            'HOME_PTS': np.random.randint(95, 125),
+            'AWAY_PTS': np.random.randint(95, 125),
+            'HOME_ELO_BEFORE': 1500 + np.random.randint(-100, 100),
+            'AWAY_ELO_BEFORE': 1500 + np.random.randint(-100, 100),
+        })
+    
+    df = pd.DataFrame(data)
+    st.info("ℹ️ Datos de ejemplo. Para predicciones reales, carga datos históricos.")
     return df
 
 # Función para cargar predictor
