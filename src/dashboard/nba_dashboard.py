@@ -146,14 +146,24 @@ def show_advanced_prediction(home_team, away_team, df_nba, predictor):
             st.error("❌ No se pudieron generar predicciones")
             return
 
+        # Determinar el equipo favorito
+        if predictions['home_win_probability'] > predictions['away_win_probability']:
+            winner_team = home_team
+            winner_prob = predictions['home_win_probability']
+            winner_color = "#4ECDC4"  # Verde para local
+        else:
+            winner_team = away_team
+            winner_prob = predictions['away_win_probability']
+            winner_color = "#FF6B6B"  # Rojo para visitante
+
         # Mostrar resultados
         col1, col2, col3 = st.columns(3)
 
         with col1:
             st.metric(
-                "🏆 Probabilidad Victoria Local",
-                f"{predictions['home_win_probability']:.1%}",
-                help="Probabilidad de que gane el equipo local"
+                f"🏆 Favorito: {winner_team}",
+                f"{winner_prob:.1%}",
+                help=f"Probabilidad de victoria del equipo favorito"
             )
 
         with col2:
@@ -173,16 +183,21 @@ def show_advanced_prediction(home_team, away_team, df_nba, predictor):
         # Gráfico de probabilidades
         fig = go.Figure()
 
+        # Determinar colores basados en quién es favorito
+        home_color = winner_color if winner_team == home_team else '#95A5A6'
+        away_color = winner_color if winner_team == away_team else '#95A5A6'
+
         fig.add_trace(go.Bar(
-            x=['Victoria Local', 'Empate/Victoria Visitante'],
-            y=[predictions['home_win_probability'], 1 - predictions['home_win_probability']],
-            marker_color=['#4ECDC4', '#FF6B6B'],
-            text=[f"{predictions['home_win_probability']:.1%}", f"{1 - predictions['home_win_probability']:.1%}"],
+            x=[f'{home_team} ({predictions["home_win_probability"]:.1%})', 
+               f'{away_team} ({predictions["away_win_probability"]:.1%})'],
+            y=[predictions['home_win_probability'], predictions['away_win_probability']],
+            marker_color=[home_color, away_color],
+            text=[f"{predictions['home_win_probability']:.1%}", f"{predictions['away_win_probability']:.1%}"],
             textposition='auto'
         ))
 
         fig.update_layout(
-            title=f"Probabilidades: {home_team} vs {away_team}",
+            title=f"🏆 Probabilidades de Victoria - Favorito: {winner_team}",
             yaxis_title="Probabilidad",
             showlegend=False,
             height=300
