@@ -81,6 +81,113 @@ class NBAPredictor:
         
         return X, y_win, y_margin, y_total
     
+    def prepare_features_for_game(self, home_team: str, away_team: str, df: pd.DataFrame) -> Dict[str, float]:
+        """
+        Prepara features para predecir un partido específico.
+        
+        Args:
+            home_team: Nombre del equipo local
+            away_team: Nombre del equipo visitante
+            df: DataFrame histórico con features
+            
+        Returns:
+            Diccionario con features para predicción
+        """
+        # Obtener el último partido de cada equipo para calcular features
+        home_games = df[
+            (df['HOME_TEAM_NAME'] == home_team) | 
+            (df['AWAY_TEAM_NAME'] == home_team)
+        ].sort_values('GAME_DATE', ascending=False)
+        
+        away_games = df[
+            (df['HOME_TEAM_NAME'] == away_team) | 
+            (df['AWAY_TEAM_NAME'] == away_team)
+        ].sort_values('GAME_DATE', ascending=False)
+        
+        if home_games.empty or away_games.empty:
+            raise ValueError(f"No hay datos suficientes para uno de los equipos: {home_team}, {away_team}")
+        
+        # Tomar el último partido de cada equipo
+        home_last = home_games.iloc[0]
+        away_last = away_games.iloc[0]
+        
+        # Determinar si el equipo juega en casa o fuera en su último partido
+        home_is_home = home_last['HOME_TEAM_NAME'] == home_team
+        away_is_home = away_last['HOME_TEAM_NAME'] == away_team
+        
+        # Extraer features del último partido de cada equipo
+        features = {}
+        
+        # ELO ratings
+        features['HOME_ELO_BEFORE'] = home_last.get('HOME_ELO_BEFORE' if home_is_home else 'AWAY_ELO_BEFORE', 1500)
+        features['AWAY_ELO_BEFORE'] = away_last.get('HOME_ELO_BEFORE' if away_is_home else 'AWAY_ELO_BEFORE', 1500)
+        features['ELO_DIFF'] = features['HOME_ELO_BEFORE'] - features['AWAY_ELO_BEFORE']
+        
+        # Rolling stats (últimos 5 partidos) - simplificado usando el último partido
+        features['HOME_PTS_ROLL_5'] = home_last.get('HOME_PTS' if home_is_home else 'AWAY_PTS', 110)
+        features['AWAY_PTS_ROLL_5'] = away_last.get('HOME_PTS' if away_is_home else 'AWAY_PTS', 110)
+        
+        # Usar porcentajes por defecto si no están disponibles
+        features['HOME_FG_PCT_ROLL_5'] = home_last.get('HOME_FG_PCT' if home_is_home else 'AWAY_FG_PCT', 0.45)
+        features['AWAY_FG_PCT_ROLL_5'] = away_last.get('HOME_FG_PCT' if away_is_home else 'AWAY_FG_PCT', 0.45)
+        
+        features['HOME_FG3_PCT_ROLL_5'] = home_last.get('HOME_FG3_PCT' if home_is_home else 'AWAY_FG3_PCT', 0.35)
+        features['AWAY_FG3_PCT_ROLL_5'] = away_last.get('HOME_FG3_PCT' if away_is_home else 'AWAY_FG3_PCT', 0.35)
+        
+        features['HOME_REB_ROLL_5'] = home_last.get('HOME_REB' if home_is_home else 'AWAY_REB', 45)
+        features['AWAY_REB_ROLL_5'] = away_last.get('HOME_REB' if away_is_home else 'AWAY_REB', 45)
+        
+        features['HOME_AST_ROLL_5'] = home_last.get('HOME_AST' if home_is_home else 'AWAY_AST', 25)
+        features['AWAY_AST_ROLL_5'] = away_last.get('HOME_AST' if away_is_home else 'AWAY_AST', 25)
+        
+        features['HOME_TOV_ROLL_5'] = home_last.get('HOME_TOV' if home_is_home else 'AWAY_TOV', 15)
+        features['AWAY_TOV_ROLL_5'] = away_last.get('HOME_TOV' if away_is_home else 'AWAY_TOV', 15)
+        
+        # Rolling stats (últimos 10 partidos) - usar mismos valores por simplicidad
+        features['HOME_PTS_ROLL_10'] = features['HOME_PTS_ROLL_5']
+        features['AWAY_PTS_ROLL_10'] = features['AWAY_PTS_ROLL_5']
+        
+        # Rest days - asumir 2 días de descanso por defecto
+        features['HOME_REST_DAYS'] = 2
+        features['AWAY_REST_DAYS'] = 2
+        
+        # Back to back - asumir no
+        features['HOME_BACK_TO_BACK'] = 0
+        features['AWAY_BACK_TO_BACK'] = 0
+        
+        # Win streaks - calcular basado en últimos partidos
+        home_recent_games = home_games.head(5)
+        away_recent_games = away_games.head(5)
+        
+        home_wins = 0
+        for _, game in home_recent_games.iterrows():
+            if game['HOME_TEAM_NAME'] == home_team and game['HOME_WL'] == 1:
+                home_wins += 1
+            elif game['AWAY_TEAM_NAME'] == home_team and game['HOME_WL'] == 0:
+                home_wins += 1
+        
+        away_wins = 0
+        for _, game in away_recent_games.iterrows():
+            if game['HOME_TEAM_NAME'] == away_team and game['HOME_WL'] == 1:
+                away_wins += 1
+            elif game['AWAY_TEAM_NAME'] == away_team and game['HOME_WL'] == 0:
+                away_wins += 1
+        
+        features['HOME_WIN_STREAK'] = home_wins
+        features['AWAY_WIN_STREAK'] = away_wins
+        
+        # Win percentage - calcular basado en temporada
+        home_total_games = len(home_games)
+        away_total_games = len(away_games)
+        
+        home_win_pct = home_games['HOME_WL'].mean() if home_total_games > 0 else 0.5
+        away_win_pct = away_games['HOME_WL'].mean() if away_total_games > 0 else 0.5
+        
+        features['HOME_WIN_PCT'] = home_win_pct
+        features['AWAY_WIN_PCT'] = away_win_pct
+        
+        return features
+    
     def train(
         self,
         df: pd.DataFrame,

@@ -136,8 +136,11 @@ def show_advanced_prediction(home_team, away_team, df_nba, predictor):
         return
 
     try:
+        # Preparar features para el partido
+        features = predictor.prepare_features_for_game(home_team, away_team, df_nba)
+        
         # Obtener predicciones
-        predictions = predictor.predict_game(home_team, away_team, df_nba)
+        predictions = predictor.predict_game(home_team, away_team, features)
 
         if predictions is None:
             st.error("❌ No se pudieron generar predicciones")
@@ -149,21 +152,21 @@ def show_advanced_prediction(home_team, away_team, df_nba, predictor):
         with col1:
             st.metric(
                 "🏆 Probabilidad Victoria Local",
-                f"{predictions['home_win_prob']:.1%}",
+                f"{predictions['home_win_probability']:.1%}",
                 help="Probabilidad de que gane el equipo local"
             )
 
         with col2:
             st.metric(
                 "📊 Margen Esperado",
-                f"{predictions['margin_pred']:+.1f} pts",
+                f"{predictions['predicted_margin']:+.1f} pts",
                 help="Diferencia de puntos esperada"
             )
 
         with col3:
             st.metric(
                 "🎯 Total Puntos",
-                f"{predictions['total_pred']:.1f} pts",
+                f"{predictions['predicted_total']:.1f} pts",
                 help="Total de puntos esperados en el partido"
             )
 
@@ -172,9 +175,9 @@ def show_advanced_prediction(home_team, away_team, df_nba, predictor):
 
         fig.add_trace(go.Bar(
             x=['Victoria Local', 'Empate/Victoria Visitante'],
-            y=[predictions['home_win_prob'], 1 - predictions['home_win_prob']],
+            y=[predictions['home_win_probability'], 1 - predictions['home_win_probability']],
             marker_color=['#4ECDC4', '#FF6B6B'],
-            text=[f"{predictions['home_win_prob']:.1%}", f"{1 - predictions['home_win_prob']:.1%}"],
+            text=[f"{predictions['home_win_probability']:.1%}", f"{1 - predictions['home_win_probability']:.1%}"],
             textposition='auto'
         ))
 
