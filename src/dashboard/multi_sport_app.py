@@ -1,11 +1,11 @@
 """
-🔥 DASHBOARD MULTI-DEPORTE - Sistema de Predicciones en Tiempo Real
+🏀 DASHBOARD NBA - Sistema de Predicciones Avanzadas
 
-Dashboard unificado para NBA, Fútbol y Tenis con:
-- Predicciones en vivo actualizadas cada 30s
-- Análisis histórico de cada deporte
+Dashboard especializado para NBA con:
+- Predicciones con 3 modelos (72.6% accuracy)
+- Análisis histórico completo
 - Gráficos interactivos con Plotly
-- Sistema de notificaciones
+- Sistema ELO + 99 features avanzadas
 """
 
 import streamlit as st
@@ -19,16 +19,14 @@ import os
 # Agregar src al path
 sys.path.insert(0, os.path.abspath('.'))
 
-from src.data.football_data_loader import FootballDataLoader
-from src.data.tennis_data_loader import TennisDataLoader
 from src.models.nba_predictor import NBAPredictor
 import joblib
 import numpy as np
 
 # Configuración de página
 st.set_page_config(
-    page_title="🔥 Predicciones Multi-Deporte",
-    page_icon="🏆",
+    page_title="🏀 Predicciones NBA Avanzadas",
+    page_icon="�",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -82,16 +80,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-
-# Cache para loaders
-@st.cache_resource
-def get_football_loader():
-    return FootballDataLoader()
-
-@st.cache_resource
-def get_tennis_loader():
-    return TennisDataLoader()
 
 
 # Función para cargar datos NBA (usando el existente)
@@ -512,213 +500,6 @@ def render_nba_tab():
                                    nbins=30,
                                    color_discrete_sequence=['#FF6B6B'])
             st.plotly_chart(fig_away, width='stretch')
-
-
-def render_football_tab():
-    """Renderiza tab de Fútbol"""
-    st.markdown("## ⚽ FÚTBOL - Predicciones y Análisis")
-    
-    # Selector de competición
-    competition = st.selectbox(
-        "🏆 Seleccionar Liga",
-        options=['PL', 'PD', 'BL1', 'SA', 'FL1'],
-        format_func=lambda x: {
-            'PL': '🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League',
-            'PD': '🇪🇸 La Liga',
-            'BL1': '🇩🇪 Bundesliga',
-            'SA': '🇮🇹 Serie A',
-            'FL1': '🇫🇷 Ligue 1'
-        }[x]
-    )
-    
-    # Cargar datos
-    with st.spinner('Cargando datos de fútbol...'):
-        data = load_football_data(competition)
-    
-    historical = data['historical']
-    standings = data['standings']
-    upcoming = data['upcoming']
-    
-    # Métricas
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("📊 Partidos Históricos", len(historical))
-    
-    with col2:
-        if not standings.empty:
-            st.metric("🏆 Equipos", len(standings))
-    
-    with col3:
-        if not upcoming.empty:
-            st.metric("🔮 Próximos", len(upcoming))
-    
-    with col4:
-        st.metric("✅ API Status", "ACTIVA")
-    
-    st.markdown("---")
-    
-    # Tabla de posiciones
-    if not standings.empty:
-        st.markdown("### 🏆 Tabla de Posiciones")
-        
-        # Colorear por zona (Champions, Europa, Descenso)
-        def color_position(row):
-            if row['position'] <= 4:
-                return ['background-color: #c8e6c9'] * len(row)
-            elif row['position'] <= 6:
-                return ['background-color: #fff9c4'] * len(row)
-            elif row['position'] >= 18:
-                return ['background-color: #ffcdd2'] * len(row)
-            return [''] * len(row)
-        
-        styled_standings = standings[['position', 'team', 'played', 'won', 'draw', 'lost', 'points', 'goal_difference']].head(20)
-        st.dataframe(styled_standings, width='stretch', height=400)
-    
-    # Próximos partidos
-    if not upcoming.empty:
-        st.markdown("### 🔮 Próximos Partidos (7 días)")
-        
-        for _, match in upcoming.head(10).iterrows():
-            col1, col2, col3 = st.columns([2, 1, 2])
-            
-            match_date = pd.to_datetime(match['date'])
-            
-            with col1:
-                st.markdown(f"**{match['home_team']}**")
-            
-            with col2:
-                st.markdown(f"<center>{match_date.strftime('%d/%m %H:%M')}</center>", 
-                          unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown(f"**{match['away_team']}**")
-            
-            st.markdown("---")
-    
-    # Gráficos de análisis
-    if not historical.empty and 'home_score' in historical.columns:
-        st.markdown("### 📊 Análisis de Goles")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Distribución de goles totales
-            historical['total_goals'] = historical['home_score'] + historical['away_score']
-            fig_goals = px.histogram(historical, x='total_goals',
-                                    title='Distribución de Goles por Partido',
-                                    nbins=10,
-                                    color_discrete_sequence=['#4ECDC4'])
-            st.plotly_chart(fig_goals, width='stretch')
-        
-        with col2:
-            # Victorias local vs visitante
-            if 'winner' in historical.columns:
-                winner_counts = historical['winner'].value_counts()
-                fig_winners = px.pie(values=winner_counts.values,
-                                    names=winner_counts.index,
-                                    title='Distribución de Resultados',
-                                    color_discrete_sequence=['#4ECDC4', '#FF6B6B', '#FFA07A'])
-                st.plotly_chart(fig_winners, width='stretch')
-
-
-def render_tennis_tab():
-    """Renderiza tab de Tenis"""
-    st.markdown("## 🎾 TENIS - Predicciones y Análisis")
-    
-    # Selectores
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        tour = st.selectbox("🏆 Tour", options=['ATP', 'WTA'])
-    
-    with col2:
-        year = st.selectbox("📅 Año", options=[2024, 2023, 2022])
-    
-    # Cargar datos
-    with st.spinner(f'Cargando datos {tour} {year}...'):
-        df_tennis = load_tennis_data(tour, year)
-    
-    if df_tennis.empty:
-        st.error("❌ No se pudieron cargar datos de tenis")
-        return
-    
-    # Métricas
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("📊 Total Partidos", f"{len(df_tennis):,}")
-    
-    with col2:
-        st.metric("🏟️ Torneos", df_tennis['tourney_name'].nunique())
-    
-    with col3:
-        surfaces = df_tennis['surface'].dropna().unique()
-        st.metric("🎯 Superficies", len(surfaces))
-    
-    with col4:
-        players = pd.concat([df_tennis['winner_name'], df_tennis['loser_name']]).nunique()
-        st.metric("👥 Jugadores", players)
-    
-    st.markdown("---")
-    
-    # Análisis de jugador
-    st.markdown("### 🎾 Análisis de Jugador")
-    
-    all_players = pd.concat([df_tennis['winner_name'], df_tennis['loser_name']]).dropna().unique()
-    all_players = sorted([p for p in all_players if isinstance(p, str)])
-    
-    selected_player = st.selectbox("Seleccionar Jugador", options=all_players[:100])
-    
-    if selected_player:
-        loader = get_tennis_loader()
-        stats = loader.get_player_stats(selected_player, df_tennis)
-        
-        if stats:
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("🎯 Partidos", stats['total_matches'])
-            
-            with col2:
-                st.metric("✅ Victorias", stats['wins'])
-            
-            with col3:
-                st.metric("❌ Derrotas", stats['losses'])
-            
-            with col4:
-                st.metric("📊 Win %", f"{stats['win_pct']:.1f}%")
-            
-            # Stats por superficie
-            if stats.get('surface_stats'):
-                st.markdown("#### 📊 Rendimiento por Superficie")
-                
-                surface_data = []
-                for surface, s_stats in stats['surface_stats'].items():
-                    surface_data.append({
-                        'Superficie': surface,
-                        'Partidos': s_stats['matches'],
-                        'Victorias': s_stats['wins'],
-                        'Win %': s_stats['win_pct']
-                    })
-                
-                df_surfaces = pd.DataFrame(surface_data)
-                
-                fig_surface = px.bar(df_surfaces, x='Superficie', y='Win %',
-                                    title=f'Win % por Superficie - {selected_player}',
-                                    color='Win %',
-                                    color_continuous_scale='Viridis')
-                st.plotly_chart(fig_surface, width='stretch')
-    
-    # Distribución por superficie
-    st.markdown("### 🌍 Distribución de Partidos por Superficie")
-    
-    surface_counts = df_tennis['surface'].value_counts()
-    fig_surfaces = px.pie(values=surface_counts.values,
-                         names=surface_counts.index,
-                         title='Partidos por Superficie',
-                         color_discrete_sequence=px.colors.sequential.Viridis)
-    st.plotly_chart(fig_surfaces, width='stretch')
 
 
 def render_live_tab():

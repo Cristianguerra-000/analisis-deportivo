@@ -1,6 +1,6 @@
-# 🏀⚽🎾 Sistema de Predicción Multi-Deporte con IA
+# 🏀 Sistema de Predicción NBA con IA
 
-Sistema avanzado de predicción deportiva con Machine Learning que soporta **NBA**, **Fútbol** y **Tenis**.
+Sistema avanzado de predicción deportiva especializado en **NBA** con Machine Learning.
 
 ## 🎯 Características
 
@@ -10,20 +10,10 @@ Sistema avanzado de predicción deportiva con Machine Learning que soporta **NBA
   - Total de puntos (MAE: 12.3 pts)
   - Sistema ELO + 99 features avanzadas
 
-- ⚽ **Predicciones Fútbol** (Premier League)
-  - 380+ partidos históricos
-  - API Football-Data.org
-  - Features: xG, posesión, tarjetas
-
-- 🎾 **Predicciones Tenis** (ATP/WTA)
-  - 11,668 partidos históricos
-  - Sistema ELO por superficie
-  - Features: serve %, ranking, fatiga
-
 - 📊 **Dashboard Interactivo** con Streamlit
-  - 4 tabs: NBA, Fútbol, Tenis, Live
-  - Auto-refresh cada 30 segundos
+  - Visualizaciones en tiempo real
   - Gráficos interactivos con Plotly
+  - Análisis histórico completo
 
 - **Modelos**:
   - Baseline: Logistic Regression + Poisson
