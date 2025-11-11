@@ -7,6 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import log_loss, brier_score_loss, roc_auc_score, accuracy_score, mean_absolute_error, r2_score
+from xgboost import XGBClassifier, XGBRegressor
 import joblib
 from pathlib import Path
 from typing import Dict, Tuple, List
@@ -56,6 +57,10 @@ class NBAPredictor:
             
             # Season stats
             'HOME_WIN_PCT', 'AWAY_WIN_PCT',
+            
+            # NUEVAS FEATURES DEFENSIVAS
+            'HOME_STL_ROLL_5', 'AWAY_STL_ROLL_5',
+            'HOME_BLK_ROLL_5', 'AWAY_BLK_ROLL_5',
         ]
         
         # Filtrar solo las columnas que existen
@@ -69,6 +74,22 @@ class NBAPredictor:
         
         # Preparar datos
         X = df[available_features].copy()
+        
+        # CREAR FEATURES DE INTERACCIÓN
+        if 'ELO_DIFF' in X.columns and 'HOME_REST_DAYS' in X.columns:
+            X['ELO_DIFF_X_REST'] = X['ELO_DIFF'] * (X['HOME_REST_DAYS'] - X['AWAY_REST_DAYS'])
+        
+        if 'HOME_WIN_PCT' in X.columns and 'AWAY_WIN_PCT' in X.columns:
+            X['WIN_PCT_DIFF'] = X['HOME_WIN_PCT'] - X['AWAY_WIN_PCT']
+        
+        if 'HOME_PTS_ROLL_5' in X.columns and 'AWAY_PTS_ROLL_5' in X.columns:
+            X['PTS_DIFF_ROLL_5'] = X['HOME_PTS_ROLL_5'] - X['AWAY_PTS_ROLL_5']
+        
+        if 'HOME_FG_PCT_ROLL_5' in X.columns and 'AWAY_FG_PCT_ROLL_5' in X.columns:
+            X['FG_PCT_DIFF_ROLL_5'] = X['HOME_FG_PCT_ROLL_5'] - X['AWAY_FG_PCT_ROLL_5']
+        
+        # Actualizar feature_columns con las nuevas features de interacción
+        self.feature_columns = X.columns.tolist()
         
         # Eliminar filas con NaN
         valid_mask = ~X.isna().any(axis=1)
@@ -186,6 +207,18 @@ class NBAPredictor:
         features['HOME_WIN_PCT'] = home_win_pct
         features['AWAY_WIN_PCT'] = away_win_pct
         
+        # NUEVAS FEATURES DEFENSIVAS (valores por defecto si no existen)
+        features['HOME_STL_ROLL_5'] = home_last.get('HOME_STL' if home_is_home else 'AWAY_STL', 7.5)
+        features['AWAY_STL_ROLL_5'] = away_last.get('HOME_STL' if away_is_home else 'AWAY_STL', 7.5)
+        features['HOME_BLK_ROLL_5'] = home_last.get('HOME_BLK' if home_is_home else 'AWAY_BLK', 5.0)
+        features['AWAY_BLK_ROLL_5'] = away_last.get('HOME_BLK' if away_is_home else 'AWAY_BLK', 5.0)
+        
+        # FEATURES DE INTERACCIÓN
+        features['ELO_DIFF_X_REST'] = features['ELO_DIFF'] * (features['HOME_REST_DAYS'] - features['AWAY_REST_DAYS'])
+        features['WIN_PCT_DIFF'] = features['HOME_WIN_PCT'] - features['AWAY_WIN_PCT']
+        features['PTS_DIFF_ROLL_5'] = features['HOME_PTS_ROLL_5'] - features['AWAY_PTS_ROLL_5']
+        features['FG_PCT_DIFF_ROLL_5'] = features['HOME_FG_PCT_ROLL_5'] - features['AWAY_FG_PCT_ROLL_5']
+        
         return features
     
     def train(
@@ -222,21 +255,42 @@ class NBAPredictor:
         X_train_scaled = self.scaler.fit_transform(X_train)
         X_test_scaled = self.scaler.transform(X_test)
         
-        # 1. Modelo de probabilidad de victoria
-        print("  - Entrenando modelo de victoria...")
-        base_win_model = LogisticRegression(max_iter=1000, random_state=random_state)
-        self.win_model = CalibratedClassifierCV(base_win_model, method='isotonic', cv=5)
-        self.win_model.fit(X_train_scaled, y_win_train)
+        # 1. Modelo de probabilidad de victoria - MEJORADO CON XGBOOST
+        print("  - Entrenando modelo de victoria (XGBoost)...")
+        self.win_model = XGBClassifier(
+            n_estimators=200,
+            max_depth=5,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=random_state,
+            eval_metric='logloss'
+        )
+        self.win_model.fit(X_train_scaled, y_win_train, verbose=False)
         
-        # 2. Modelo de margen de puntos
-        print("  - Entrenando modelo de margen...")
-        self.margin_model = Ridge(alpha=1.0, random_state=random_state)
-        self.margin_model.fit(X_train_scaled, y_margin_train)
+        # 2. Modelo de margen de puntos - MEJORADO CON XGBOOST
+        print("  - Entrenando modelo de margen (XGBoost optimizado)...")
+        self.margin_model = XGBRegressor(
+            n_estimators=180,
+            max_depth=5,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=random_state
+        )
+        self.margin_model.fit(X_train_scaled, y_margin_train, verbose=False)
         
-        # 3. Modelo de puntos totales
-        print("  - Entrenando modelo de total de puntos...")
-        self.total_model = Ridge(alpha=1.0, random_state=random_state)
-        self.total_model.fit(X_train_scaled, y_total_train)
+        # 3. Modelo de puntos totales - MEJORADO CON XGBOOST
+        print("  - Entrenando modelo de total de puntos (XGBoost optimizado)...")
+        self.total_model = XGBRegressor(
+            n_estimators=180,
+            max_depth=5,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=random_state
+        )
+        self.total_model.fit(X_train_scaled, y_total_train, verbose=False)
         
         # Evaluar
         print("\n📊 Evaluando modelos en test set...")

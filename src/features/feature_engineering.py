@@ -106,19 +106,39 @@ class NBAFeatureEngineer:
         
         # Calcular rolling para cada ventana
         for window in windows:
-            # Home team rolling stats
+            # Home team rolling stats - Estadísticas básicas
             for stat in ['PTS', 'FG_PCT', 'FG3_PCT', 'REB', 'AST', 'TOV']:
                 col_name = f'HOME_{stat}_ROLL_{window}'
                 games_df[col_name] = home_stats.groupby('TEAM_ID')[stat].transform(
                     lambda x: x.shift(1).rolling(window, min_periods=1).mean()
                 )
             
-            # Away team rolling stats
+            # Away team rolling stats - Estadísticas básicas
             for stat in ['PTS', 'FG_PCT', 'FG3_PCT', 'REB', 'AST', 'TOV']:
                 col_name = f'AWAY_{stat}_ROLL_{window}'
                 games_df[col_name] = away_stats.groupby('TEAM_ID')[stat].transform(
                     lambda x: x.shift(1).rolling(window, min_periods=1).mean()
                 )
+            
+            # NUEVAS FEATURES DEFENSIVAS - Solo para ventana 5
+            if window == 5 and 'HOME_STL' in games_df.columns:
+                # Robos (Steals)
+                games_df[f'HOME_STL_ROLL_{window}'] = home_stats.groupby('TEAM_ID')['STL'].transform(
+                    lambda x: x.shift(1).rolling(window, min_periods=1).mean()
+                ) if 'STL' in home_stats.columns else 0
+                
+                games_df[f'AWAY_STL_ROLL_{window}'] = away_stats.groupby('TEAM_ID')['STL'].transform(
+                    lambda x: x.shift(1).rolling(window, min_periods=1).mean()
+                ) if 'STL' in away_stats.columns else 0
+                
+                # Bloqueos (Blocks)
+                games_df[f'HOME_BLK_ROLL_{window}'] = home_stats.groupby('TEAM_ID')['BLK'].transform(
+                    lambda x: x.shift(1).rolling(window, min_periods=1).mean()
+                ) if 'BLK' in home_stats.columns else 0
+                
+                games_df[f'AWAY_BLK_ROLL_{window}'] = away_stats.groupby('TEAM_ID')['BLK'].transform(
+                    lambda x: x.shift(1).rolling(window, min_periods=1).mean()
+                ) if 'BLK' in away_stats.columns else 0
         
         return games_df
     
@@ -126,7 +146,8 @@ class NBAFeatureEngineer:
         """Crea DataFrame de estadísticas por equipo."""
         prefix = home_away
         
-        team_stats = games_df[[
+        # Columnas básicas que siempre existen
+        base_cols = [
             'GAME_DATE',
             f'{prefix}_TEAM_ID',
             f'{prefix}_PTS',
@@ -135,11 +156,25 @@ class NBAFeatureEngineer:
             f'{prefix}_REB',
             f'{prefix}_AST',
             f'{prefix}_TOV'
-        ]].copy()
-        
-        team_stats.columns = [
-            'GAME_DATE', 'TEAM_ID', 'PTS', 'FG_PCT', 'FG3_PCT', 'REB', 'AST', 'TOV'
         ]
+        
+        # Agregar columnas defensivas si existen
+        optional_cols = []
+        for col in [f'{prefix}_STL', f'{prefix}_BLK']:
+            if col in games_df.columns:
+                optional_cols.append(col)
+        
+        all_cols = base_cols + optional_cols
+        team_stats = games_df[all_cols].copy()
+        
+        # Renombrar columnas
+        new_col_names = ['GAME_DATE', 'TEAM_ID', 'PTS', 'FG_PCT', 'FG3_PCT', 'REB', 'AST', 'TOV']
+        if f'{prefix}_STL' in games_df.columns:
+            new_col_names.append('STL')
+        if f'{prefix}_BLK' in games_df.columns:
+            new_col_names.append('BLK')
+        
+        team_stats.columns = new_col_names
         
         return team_stats.sort_values(['TEAM_ID', 'GAME_DATE'])
     
