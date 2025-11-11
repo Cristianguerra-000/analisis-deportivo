@@ -266,6 +266,13 @@ class NBAPredictor:
         self.feature_columns = save_data['feature_columns']
         
         print(f"✅ Modelos cargados desde: {filepath}")
+    
+    @classmethod
+    def load_model(cls, filepath: str):
+        """Método de clase para cargar un modelo entrenado."""
+        instance = cls()
+        instance.load(filepath)
+        return instance
 
 
 if __name__ == "__main__":

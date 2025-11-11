@@ -90,7 +90,12 @@ def load_nba_data():
 def load_nba_predictor():
     """Carga el modelo entrenado de NBA"""
     try:
-        predictor = NBAPredictor.load('models/nba_predictor.joblib')
+        # Usar ruta absoluta basada en el directorio del archivo actual
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        model_path = os.path.join(project_root, 'models', 'nba_predictor.joblib')
+
+        predictor = NBAPredictor.load_model(model_path)
         return predictor
     except Exception as e:
         st.error(f"⚠️ No se pudo cargar el modelo NBA. Verifica que existe models/nba_predictor.joblib")
