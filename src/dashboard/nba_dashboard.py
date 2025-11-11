@@ -12,7 +12,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime
 import sys
 import os
 
@@ -20,8 +20,6 @@ import os
 sys.path.insert(0, os.path.abspath('.'))
 
 from src.models.nba_predictor import NBAPredictor
-import joblib
-import numpy as np
 
 # Configuración de página
 st.set_page_config(
